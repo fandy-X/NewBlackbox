@@ -1,4 +1,4 @@
-name: Build BlackBox Core AAR
+name: Build BlackBox Core & Reflection
 
 on:
   push:
@@ -21,48 +21,16 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
 
-    - name: Accept Android SDK Licenses
-      run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
     - name: Make gradlew executable
       run: chmod +x gradlew
 
     - name: Build BCore & BlackReflection
-      run: |
-        ./gradlew :black-reflection:jar :BCore:assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx1536m"
+      run: ./gradlew :black-reflection:jar :BCore:assembleRelease --no-daemon
 
-    - name: Merge BlackReflection into BCore AAR
-      run: |
-        mkdir -p repack classes_dir
-        
-        # 1. Ekstrak isi file AAR utama
-        unzip -q BCore/build/outputs/aar/*-release.aar -d repack
-        
-        # 2. Ekstrak classes.jar utama ke folder classes_dir
-        unzip -q repack/classes.jar -d classes_dir
-        
-        # 3. Timpa/Gabungkan kelas dari black-reflection
-        for f in black-reflection/build/libs/*.jar; do
-          if [ -f "$f" ]; then
-            unzip -o -q "$f" -d classes_dir
-          fi
-        done
-        
-        # 4. Kemas kembali classes.jar utuh
-        rm repack/classes.jar
-        cd classes_dir
-        zip -r -q ../repack/classes.jar .
-        cd ..
-        
-        # 5. Kemas kembali file AAR fat final
-        cd repack
-        zip -r -q ../BCore-fat-release.aar .
-        cd ..
-
-    - name: Upload AAR Artifact
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: BCore-release-aar
-        path: 'BCore-fat-release.aar'
-        
+        name: BlackBox-Build-Output
+        path: |
+          **/build/outputs/aar/*.aar
+          **/build/libs/*.jar
