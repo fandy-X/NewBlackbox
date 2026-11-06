@@ -30,28 +30,33 @@ jobs:
 
     - name: Build BCore & BlackReflection
       run: |
-        ./gradlew :black-reflection:jar :BCore:assembleRelease --stacktrace
+        ./gradlew :black-reflection:jar :BCore:assembleRelease -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" --stacktrace
 
     - name: Merge BlackReflection into BCore AAR
       run: |
-        mkdir -p repack_aar
-        cd repack_aar
-        unzip ../BCore/build/outputs/aar/*-release.aar
+        mkdir -p repack
+        cd repack
         
-        mkdir -p repack_classes
-        cd repack_classes
-        jar xvf ../classes.jar
+        # Ekstrak AAR utama
+        unzip -q ../BCore/build/outputs/aar/*-release.aar
         
-        # Merge black-reflection classes
-        find ../../black-reflection/build/libs/ -name "*.jar" -exec jar xvf {} \;
+        # Ekstrak classes.jar utama
+        mkdir -p classes_all
+        cd classes_all
+        jar xf ../classes.jar
         
-        # Re-pack full classes.jar
-        jar cvf ../classes.jar .
+        # Gabungkan class dari black-reflection
+        for f in ../../black-reflection/build/libs/*.jar; do
+          [ -e "$f" ] && jar xf "$f"
+        done
+        
+        # Kemas ulang classes.jar utuh
+        jar cf ../classes.jar .
         cd ..
-        rm -rf repack_classes
+        rm -rf classes_all
         
-        # Package merged AAR
-        zip -r ../BCore-fat-release.aar .
+        # Kemas ulang AAR final
+        zip -q -r ../BCore-fat-release.aar .
         cd ..
 
     - name: Upload AAR Artifact
@@ -59,3 +64,4 @@ jobs:
       with:
         name: BCore-release-aar
         path: 'BCore-fat-release.aar'
+        
