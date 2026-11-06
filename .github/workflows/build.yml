@@ -30,34 +30,43 @@ jobs:
 
     - name: Build BCore & BlackReflection
       run: |
-        ./gradlew :black-reflection:jar :BCore:assembleRelease -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" --stacktrace
+        ./gradlew :black-reflection:jar :BCore:assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx1536m"
 
     - name: Merge BlackReflection into BCore AAR
       run: |
-        mkdir -p repack
-        cd repack
-        
-        # Ekstrak AAR utama
-        unzip -q ../BCore/build/outputs/aar/*-release.aar
-        
-        # Ekstrak classes.jar utama
-        mkdir -p classes_all
-        cd classes_all
-        jar xf ../classes.jar
-        
-        # Gabungkan class dari black-reflection
-        for f in ../../black-reflection/build/libs/*.jar; do
-          [ -e "$f" ] && jar xf "$f"
-        done
-        
-        # Kemas ulang classes.jar utuh
-        jar cf ../classes.jar .
-        cd ..
-        rm -rf classes_all
-        
-        # Kemas ulang AAR final
-        zip -q -r ../BCore-fat-release.aar .
-        cd ..
+        python3 -c "
+        import zipfile, glob, io
+
+        aar_files = glob.glob('BCore/build/outputs/aar/*-release.aar')
+        br_jars = glob.glob('black-reflection/build/libs/*.jar')
+
+        if not aar_files or not br_jars:
+            raise Exception('File hasil kompilasi tidak ditemukan')
+
+        with zipfile.ZipFile(br_jars[0], 'r') as br_zip:
+            br_files = {item.filename: br_zip.read(item.filename) for item in br_zip.infolist() if not item.filename.startswith('META-INF/')}
+
+        with zipfile.ZipFile(aar_files[0], 'r') as aar_zip:
+            aar_dict = {item.filename: aar_zip.read(item.filename) for item in aar_zip.infolist()}
+
+        with zipfile.ZipFile(io.BytesIO(aar_dict['classes.jar']), 'r') as orig_zip:
+            cls_dict = {item.filename: orig_zip.read(item.filename) for item in orig_zip.infolist()}
+
+        cls_dict.update(br_files)
+
+        out_cls_io = io.BytesIO()
+        with zipfile.ZipFile(out_cls_io, 'w', zipfile.ZIP_DEFLATED) as out_cls_zip:
+            for k, v in cls_dict.items():
+                out_cls_zip.writestr(k, v)
+
+        aar_dict['classes.jar'] = out_cls_io.getvalue()
+
+        with zipfile.ZipFile('BCore-fat-release.aar', 'w', zipfile.ZIP_DEFLATED) as out_aar:
+            for k, v in aar_dict.items():
+                out_aar.writestr(k, v)
+
+        print('BERHASIL MERGE BCORE FAT AAR!')
+        "
 
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
