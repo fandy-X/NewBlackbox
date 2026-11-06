@@ -28,12 +28,34 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    - name: Build BCore AAR
-      run: ./gradlew :BCore:assembleRelease --stacktrace
+    - name: Build BCore & BlackReflection
+      run: |
+        ./gradlew :black-reflection:jar :BCore:assembleRelease --stacktrace
+
+    - name: Merge BlackReflection into BCore AAR
+      run: |
+        mkdir -p repack_aar
+        cd repack_aar
+        unzip ../BCore/build/outputs/aar/*-release.aar
+        
+        mkdir -p repack_classes
+        cd repack_classes
+        jar xvf ../classes.jar
+        
+        # Merge black-reflection classes
+        find ../../black-reflection/build/libs/ -name "*.jar" -exec jar xvf {} \;
+        
+        # Re-pack full classes.jar
+        jar cvf ../classes.jar .
+        cd ..
+        rm -rf repack_classes
+        
+        # Package merged AAR
+        zip -r ../BCore-fat-release.aar .
+        cd ..
 
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
       with:
         name: BCore-release-aar
-        path: '**/build/outputs/aar/*.aar'
-        
+        path: 'BCore-fat-release.aar'
