@@ -34,39 +34,31 @@ jobs:
 
     - name: Merge BlackReflection into BCore AAR
       run: |
-        python3 -c "
-        import zipfile, glob, io
-
-        aar_files = glob.glob('BCore/build/outputs/aar/*-release.aar')
-        br_jars = glob.glob('black-reflection/build/libs/*.jar')
-
-        if not aar_files or not br_jars:
-            raise Exception('File hasil kompilasi tidak ditemukan')
-
-        with zipfile.ZipFile(br_jars[0], 'r') as br_zip:
-            br_files = {item.filename: br_zip.read(item.filename) for item in br_zip.infolist() if not item.filename.startswith('META-INF/')}
-
-        with zipfile.ZipFile(aar_files[0], 'r') as aar_zip:
-            aar_dict = {item.filename: aar_zip.read(item.filename) for item in aar_zip.infolist()}
-
-        with zipfile.ZipFile(io.BytesIO(aar_dict['classes.jar']), 'r') as orig_zip:
-            cls_dict = {item.filename: orig_zip.read(item.filename) for item in orig_zip.infolist()}
-
-        cls_dict.update(br_files)
-
-        out_cls_io = io.BytesIO()
-        with zipfile.ZipFile(out_cls_io, 'w', zipfile.ZIP_DEFLATED) as out_cls_zip:
-            for k, v in cls_dict.items():
-                out_cls_zip.writestr(k, v)
-
-        aar_dict['classes.jar'] = out_cls_io.getvalue()
-
-        with zipfile.ZipFile('BCore-fat-release.aar', 'w', zipfile.ZIP_DEFLATED) as out_aar:
-            for k, v in aar_dict.items():
-                out_aar.writestr(k, v)
-
-        print('BERHASIL MERGE BCORE FAT AAR!')
-        "
+        mkdir -p repack classes_dir
+        
+        # 1. Ekstrak isi file AAR utama
+        unzip -q BCore/build/outputs/aar/*-release.aar -d repack
+        
+        # 2. Ekstrak classes.jar utama ke folder classes_dir
+        unzip -q repack/classes.jar -d classes_dir
+        
+        # 3. Timpa/Gabungkan kelas dari black-reflection
+        for f in black-reflection/build/libs/*.jar; do
+          if [ -f "$f" ]; then
+            unzip -o -q "$f" -d classes_dir
+          fi
+        done
+        
+        # 4. Kemas kembali classes.jar utuh
+        rm repack/classes.jar
+        cd classes_dir
+        zip -r -q ../repack/classes.jar .
+        cd ..
+        
+        # 5. Kemas kembali file AAR fat final
+        cd repack
+        zip -r -q ../BCore-fat-release.aar .
+        cd ..
 
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
