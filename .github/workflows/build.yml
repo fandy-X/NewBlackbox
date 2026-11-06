@@ -1,0 +1,35 @@
+name: Build BlackBox Core AAR
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Make gradlew executable
+      run: chmod +x gradlew
+
+    - name: Build BCore AAR
+      run: ./gradlew :BCore:assembleRelease
+
+    - name: Upload AAR Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BCore-release
+        path: BCore/build/outputs/aar/
