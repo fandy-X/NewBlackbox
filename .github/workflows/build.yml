@@ -33,13 +33,19 @@ jobs:
 
     - name: Convert to DEX
       run: |
-        mkdir -p dexout/aar
+        set -e
+        rm -rf dexout && mkdir -p dexout/aar dexout/jni
         unzip -q Bcore/build/outputs/aar/Bcore-release.aar -d dexout/aar
-        D8=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)d8
-        LIB=$(ls $ANDROID_HOME/platforms/*/android.jar | sort -V | tail -1)
-        $D8 --release --min-api 21 --lib "$LIB" --output dexout dexout/aar/classes.jar black-reflection/build/libs/*.jar
-        cp dexout/aar/jni/arm64-v8a/libblackbox.so dexout/ || true
-    
+        BT=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)
+        PLAT=$(ls $ANDROID_HOME/platforms/*/android.jar | sort -V | tail -1)
+        echo "build-tools: $BT"
+        echo "platform: $PLAT"
+        ${BT}d8 --release --min-api 21 --lib "$PLAT" --output dexout \
+          dexout/aar/classes.jar black-reflection/build/libs/*.jar
+        cp -r dexout/aar/jni/* dexout/jni/
+        cp dexout/aar/AndroidManifest.xml dexout/AndroidManifest.xml
+        ls -R dexout | head -60
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -47,3 +53,6 @@ jobs:
         path: |
           **/build/outputs/aar/*.aar
           **/build/libs/*.jar
+          dexout/classes*.dex
+          dexout/jni/**
+          dexout/AndroidManifest.xml
