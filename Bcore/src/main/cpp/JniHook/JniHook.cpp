@@ -91,7 +91,16 @@ inline static bool ClearFastNativeFlag(char *art_method) {
 static void *GetArtMethod(JNIEnv *env, jclass clazz, jmethodID methodId) {
     if (HookEnv.api_level >= __ANDROID_API_Q__) {
         jclass executable = env->FindClass("java/lang/reflect/Executable");
+        if (executable == nullptr) {
+            env->ExceptionClear();
+            return methodId;
+        }
         jfieldID artId = env->GetFieldID(executable, "artMethod", "J");
+        if (artId == nullptr) {
+            env->ExceptionClear();
+            ALOGD("GetArtMethod: field artMethod tidak ditemukan, pakai methodId");
+            return methodId;
+        }
         jobject method = env->ToReflectedMethod(clazz, methodId, true);
         return reinterpret_cast<void *>(env->GetLongField(method, artId));
     } else {
@@ -100,13 +109,8 @@ static void *GetArtMethod(JNIEnv *env, jclass clazz, jmethodID methodId) {
 }
 
 static void *GetFieldMethod(JNIEnv *env, jobject field) {
-    if (HookEnv.api_level >= __ANDROID_API_Q__) {
-        jclass fieldClass = env->FindClass("java/lang/reflect/Field");
-        jmethodID getArtField = env->GetMethodID(fieldClass, "getArtField", "()J");
-        return reinterpret_cast<void *>(env->CallLongMethod(field, getArtField));
-    } else {
-        return env->FromReflectedField(field);
-    }
+    // ART: jfieldID adalah pointer ArtField itu sendiri. Field.getArtField() tidak ada di ART modern.
+    return env->FromReflectedField(field);
 }
 
 bool CheckFlags(void *artMethod) {
