@@ -29,8 +29,14 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build BCore & BlackReflection
-      run: ./gradlew :black-reflection:jar :BCore:assembleRelease --no-daemon
-
+      run: |
+        for i in 1 2 3; do
+          ./gradlew :black-reflection:jar :BCore:assembleRelease --no-daemon && exit 0
+          echo "Percobaan $i gagal, ulangi..."
+          sleep 15
+        done
+        exit 1
+        
     - name: Convert to DEX
       run: |
         set -e
